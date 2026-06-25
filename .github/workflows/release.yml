@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - CHANGELOG.md
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse latest version from CHANGELOG
+        id: parse
+        run: |
+          # First versioned heading — ## [x.y.z] or ## [x.y.z] - date
+          VERSION=$(grep -oP '^## \[\K[0-9][^\]]*' CHANGELOG.md | head -1)
+          if [ -z "$VERSION" ]; then
+            echo "No versioned release in CHANGELOG — nothing to do."
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: tag_check
+        if: steps.parse.outputs.version != ''
+        run: |
+          TAG="v${{ steps.parse.outputs.version }}"
+          if git tag --list | grep -qx "$TAG"; then
+            echo "Tag $TAG already exists — skipping release."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract release notes
+        if: steps.parse.outputs.version != '' && steps.tag_check.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.parse.outputs.version }}"
+          # Content between ## [VERSION]... and the next ## [ heading
+          awk -v ver="$VERSION" \
+            'BEGIN { pat = "^## \\[" ver "\\]" }
+             $0 ~ pat  { found = 1; next }
+             found && /^## / { exit }
+             found           { print }' \
+            CHANGELOG.md > release_notes.md
+          echo "--- Release notes ---"
+          cat release_notes.md
+
+      - name: Create tag and GitHub release
+        if: steps.parse.outputs.version != '' && steps.tag_check.outputs.exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.parse.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file release_notes.md

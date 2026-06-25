@@ -9,7 +9,7 @@ Use this document when an agent is setting itself up for a DAO for the first tim
 - **Shared memory**: DAO-level public context using DAO database records plus IPFS-pinned artifacts.
 - **Workspace**: an IPFS-pinned snapshot for the DAO or a proposal. Workspaces are linked from DAO metadata or proposal `contentURI`.
 
-The `moloch-agent-conviction` skill manages the mandate file, but the agent should not invent the mandate during generic bootstrap. Ask the operator for the mandate or load it from the harness.
+The `conviction.md` reference manages the mandate file format, but the agent should not invent the mandate during generic bootstrap. Ask the operator for the mandate or load it from the harness.
 
 ## Bootstrap Goal
 
@@ -55,44 +55,47 @@ If a required value is missing, create a local draft and record the missing fiel
 
 ## Dependency Check
 
-Verify the runtime before autonomous work starts:
+Verify the runtime before autonomous work starts. See `setup.md` (same references folder)
+for all environment variables, install steps, and execution modes.
 
 ```bash
-node moloch-shared/scripts/moloch.mjs capabilities
-node moloch-shared/scripts/moloch.mjs task-snapshot --dao 0xDAO --first 100 --out-dir /data/custom/moloch-skills/artifacts/0xDAO
+# Primary: moloch-agent CLI + hosted service
+moloch-agent health
+moloch-agent capabilities
+
+# Fallback: shared scripts (if moloch-agent CLI is unavailable)
+node scripts/moloch.mjs capabilities
 ```
 
-Required for autonomous write actions:
+Then run an initial task snapshot once a DAO address is known:
 
-- `RPC_URL`
-- managed signer or `PRIVATE_KEY`
-- funded wallet
+```bash
+node scripts/moloch.mjs task-snapshot \
+  --dao 0xDAO --first 100 \
+  --out-dir /data/custom/moloch-skills/artifacts/0xDAO
+```
 
-Use a platform wallet/account skill when the harness exposes one. If no wallet skill is visible, fall back to `PRIVATE_KEY`. When using the npm CLI, run `moloch-agent account` to derive the exact signer address from `PRIVATE_KEY`.
+Required capabilities before autonomous write actions:
 
-Required for indexed discovery:
+- `RPC_URL` configured and funded wallet available.
+- Signing capability: platform wallet skill, managed signer, or `PRIVATE_KEY`.
+  Use `moloch-agent account` to confirm the exact signer address.
+- For `--build-only` / external wallet integration, see `setup.md`.
 
-- `GRAPH_URL` or `GRAPH_API_KEY`
+Required for indexed discovery: `GRAPH_URL` or `GRAPH_API_KEY`.
 
-Required for publishing larger/versioned artifacts:
+Required for publishing versioned artifacts: Pinata/IPFS via the hosted service
+(`moloch-agent pin-json`) or a platform IPFS skill if available.
 
-- Pinata or another pinning provider credential, if configured by the harness.
-
-Use a platform Pinata/IPFS skill when the harness exposes one. If no IPFS publishing skill is visible, fall back to the hosted service through `moloch-agent pin-json`.
-
-Also record whether platform skills exist for:
-
-- scheduler/tasks
-- secrets
-- filesystem persistence
-- operator notifications
+Also record whether the harness provides: scheduler/tasks, secrets management,
+filesystem persistence, and operator notification skills.
 
 ## Mandate Setup
 
 Use the template only after the operator provides the mandate content or source:
 
 ```text
-moloch-agent-conviction/assets/conviction-profile.template.json
+assets/conviction-profile.template.json
 ```
 
 Fill the mandate with:
@@ -152,22 +155,9 @@ Use the `community-memory/v1` envelope for DAO database records. Prefer `threadI
 
 ## First Scheduled Tasks
 
-After bootstrap, configure these tasks as appropriate:
-
-1. **Proposal Action Watcher**
-   - sponsor, vote, process, cancel, and post-action records
-   - direct chain preflight before writes
-   - process ready proposals as mechanical settlement
-
-2. **Initiative Steward**
-   - maintain the mandate initiative backlog
-   - update operating context after passed, failed, rejected, or processed proposals
-   - prepare draft workspaces when an initiative becomes ready
-
-3. **Proposal Generation**
-   - create at most one proposal when the mandate and proposal throttle allow it
-   - link proposal workspaces through `contentURI`
-   - post proposal notes to DAO database memory
+After bootstrap, configure recurring tasks using the patterns in `agent-tasks.md`
+(same references folder). The three core tasks are the Proposal Action Watcher,
+Initiative Steward, and Proposal Generation cycle.
 
 ## Bootstrap Output
 

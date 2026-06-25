@@ -1,31 +1,37 @@
----
-name: moloch-proposal-actions
-description: Operate existing Moloch V3/Baal proposals on Base with a managed wallet. Use to sponsor, vote yes/no, process, cancel, or validate proposal action eligibility and build/sending transaction objects.
----
-
 # Moloch Proposal Actions
 
-Use this skill for proposal lifecycle actions.
+Use this reference for proposal lifecycle actions.
 
 ## Workflow
 
-1. Use `../moloch-shared` for wallet/RPC setup.
+1. For env vars, install, and execution mode flags, see `setup.md` (same references folder).
 2. Read proposal state before acting:
-   `node ../moloch-shared/scripts/moloch.mjs read-proposal --dao 0xDAO --proposal 1`
-3. Read indexed proposal details before acting:
-   `node ../moloch-shared/scripts/moloch.mjs graph-proposal --dao 0xDAO --proposal 1`
-4. Derive lifecycle before acting:
-   `node ../moloch-shared/scripts/moloch.mjs proposal-lifecycle --dao 0xDAO --proposal 1`
-5. If live preflight passes and the managed signer has the required gas and DAO permissions, broadcast with `--send`.
-6. Build unsigned only when the task explicitly asks for dry-run/review/draft mode or a technical blocker prevents sending.
-7. Re-read the proposal after confirmation and record the tx hash.
+   ```bash
+   moloch-agent proposal --dao 0xDAO --proposal 1                     # primary
+   node scripts/moloch.mjs read-proposal --dao 0xDAO --proposal 1    # fallback
+   ```
+3. Read indexed proposal details:
+   ```bash
+   moloch-agent proposal --dao 0xDAO --proposal 1                     # primary
+   node scripts/moloch.mjs graph-proposal --dao 0xDAO --proposal 1   # fallback
+   ```
+4. Derive lifecycle:
+   ```bash
+   moloch-agent proposal-lifecycle --dao 0xDAO --proposal 1           # primary
+   node scripts/moloch.mjs proposal-lifecycle --dao 0xDAO --proposal 1 # fallback
+   ```
+5. If live preflight passes: broadcast. With the CLI, commands broadcast by default.
+   With the scripts, add `--send`. Build unsigned (`--build-only` / omit `--send`) only
+   for explicit dry-run, review, or external wallet flows.
+6. Re-read the proposal after confirmation and record the tx hash.
 
 ## Commands
 
 Sponsor:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs sponsor --dao 0xDAO --proposal 1 --send
+moloch-agent sponsor --dao 0xDAO --proposal 1
+# Fallback: node scripts/moloch.mjs sponsor --dao 0xDAO --proposal 1 --send
 ```
 
 Vote:
@@ -40,7 +46,10 @@ When using the npm CLI, include `--reason` whenever the agent has a substantive 
 Process:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs process --dao 0xDAO --proposal 1 --proposal-data 0x... --send
+moloch-agent process-ready --dao 0xDAO
+# or a specific proposal:
+moloch-agent process --dao 0xDAO --proposal 1
+# Fallback: node scripts/moloch.mjs process --dao 0xDAO --proposal 1 --proposal-data 0x... --send
 ```
 
 Processing is required contract maintenance after governance is complete. It is not a second vote. If `process-queue` marks a proposal as the first chain-ready item, process it unless chain preflight fails, exact indexed `proposalData` is unavailable or mismatched, or signer/gas is unavailable.
@@ -50,13 +59,14 @@ Use an explicit process gas limit. Wallet/RPC estimation can undercount inner pr
 For processing, get `proposalData` from `graph-proposal`. Decode it before sending if there is any ambiguity:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs decode-proposal-data --data 0xPROPOSAL_DATA
+node scripts/moloch.mjs decode-proposal-data --data 0xPROPOSAL_DATA
 ```
 
 Queue processing oldest ready proposal first:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs process-queue --dao 0xDAO --first 100
+moloch-agent process-queue --dao 0xDAO
+# Fallback: node scripts/moloch.mjs process-queue --dao 0xDAO --first 100
 ```
 
 Process only the first item in `process-queue`. After a successful process transaction, re-run `process-queue` before processing the next proposal. Baal proposals are ordered by `prevProposalId`; later proposals may appear ready by time/vote checks but still be blocked until earlier proposals are terminal.
@@ -64,10 +74,9 @@ Process only the first item in `process-queue`. After a successful process trans
 Cancel:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs cancel --dao 0xDAO --proposal 1 --send
+moloch-agent cancel --dao 0xDAO --proposal 1
+# Fallback: node scripts/moloch.mjs cancel --dao 0xDAO --proposal 1 --send
 ```
-
-Omit `--send` only for explicit dry-run/review mode or when a technical blocker prevents sending.
 
 ## Eligibility
 

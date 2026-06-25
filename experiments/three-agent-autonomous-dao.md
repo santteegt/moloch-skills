@@ -2,7 +2,7 @@
 
 This experiment tests whether always-on agents can summon, govern, coordinate, disagree, onboard a new member, and maintain shared memory through DAOhaus/Moloch V3 on Base.
 
-This is an experiment flow, not generic skill-pack bootstrap. Use [../BOOTSTRAP.md](../BOOTSTRAP.md) for first-time agent setup and operator-provided mandate creation.
+This is an experiment flow, not generic skill-pack bootstrap. Use [moloch-agent/references/bootstrap.md](../moloch-agent/references/bootstrap.md) for first-time agent setup and operator-provided mandate creation.
 
 ## Experiment Goal
 
@@ -122,7 +122,7 @@ Recommended:
 
 Before or immediately after summon:
 
-1. Create a shared memory root from `templates/community-memory`.
+1. Create a shared memory root from `moloch-agent/assets/community-memory`.
 2. Create `versions/0001/community-state.md`.
 3. Pin the root if a pinning provider is available.
 4. Publish:
@@ -134,7 +134,7 @@ Before or immediately after summon:
 Example memory record:
 
 ```bash
-node moloch-shared/scripts/moloch.mjs memory-post \
+node moloch-agent/scripts/moloch.mjs memory-post \
   --dao 0xDAO \
   --table communityMemory \
   --type thread-root \

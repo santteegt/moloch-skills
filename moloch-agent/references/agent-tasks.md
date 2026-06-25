@@ -18,14 +18,14 @@ Split scheduled agent work into three layers:
 
 This reduces tokens because scheduled prompts do not need to repeat every chain/Graph query. The agent can read cached artifacts first, then make targeted live reads only for actions it may take.
 
-Local task artifacts are not the DAO's durable memory. Use the DAO memory layer from `MEMORY_LAYER.md` for cross-agent communication, proposal collaboration, vote reasons, and versioned community state.
+Local task artifacts are not the DAO's durable memory. Use the DAO memory layer from `memory-layer.md` (same references folder) for cross-agent communication, proposal collaboration, vote reasons, and versioned community state.
 
 ## Cron Snapshot
 
 Use `task-snapshot` as the default scheduled data refresh.
 
 ```bash
-node /data/custom/moloch-skills/moloch-shared/scripts/moloch.mjs task-snapshot \
+node /data/custom/moloch-skills/moloch-agent/scripts/moloch.mjs task-snapshot \
   --dao 0xDAO \
   --first 100 \
   --out-dir /data/custom/moloch-skills/artifacts/0xDAO
@@ -34,7 +34,7 @@ node /data/custom/moloch-skills/moloch-shared/scripts/moloch.mjs task-snapshot \
 Suggested cron cadence:
 
 ```cron
-*/10 * * * * cd /data/custom/moloch-skills && node moloch-shared/scripts/moloch.mjs task-snapshot --dao 0xDAO --first 100 --out-dir /data/custom/moloch-skills/artifacts/0xDAO >> /data/custom/moloch-skills/artifacts/0xDAO/cron.log 2>&1
+*/10 * * * * node /data/custom/moloch-skills/moloch-agent/scripts/moloch.mjs task-snapshot --dao 0xDAO --first 100 --out-dir /data/custom/moloch-skills/artifacts/0xDAO >> /data/custom/moloch-skills/artifacts/0xDAO/cron.log 2>&1
 ```
 
 The command writes:
@@ -357,30 +357,45 @@ Recommended action log fields:
 Read direct state:
 
 ```bash
-node moloch-shared/scripts/moloch.mjs read-dao --dao 0xDAO
+# Primary
+moloch-agent read-dao --dao 0xDAO
+# Fallback
+node scripts/moloch.mjs read-dao --dao 0xDAO
 ```
 
 Read broad indexed history:
 
 ```bash
-node moloch-shared/scripts/moloch.mjs graph-dao-history --dao 0xDAO --first 100
+# Primary
+moloch-agent dao --dao 0xDAO
+# Fallback (full graph-dao-history)
+node scripts/moloch.mjs graph-dao-history --dao 0xDAO --first 100
 ```
 
-Write scheduled artifacts:
+Write scheduled artifacts (scripts only — `task-snapshot` is not in the moloch-agent CLI):
 
 ```bash
-node moloch-shared/scripts/moloch.mjs task-snapshot --dao 0xDAO --first 100 --out-dir /data/custom/moloch-skills/artifacts/0xDAO
+node scripts/moloch.mjs task-snapshot \
+  --dao 0xDAO --first 100 \
+  --out-dir /data/custom/moloch-skills/artifacts/0xDAO
 ```
 
 Read one proposal:
 
 ```bash
-node moloch-shared/scripts/moloch.mjs graph-proposal --dao 0xDAO --proposal 1
+# Primary
+moloch-agent proposal --dao 0xDAO --proposal 1
+# Fallback
+node scripts/moloch.mjs graph-proposal --dao 0xDAO --proposal 1
 ```
 
 Derive lifecycle and processing queue:
 
 ```bash
-node moloch-shared/scripts/moloch.mjs proposal-lifecycle --dao 0xDAO --proposal 1
-node moloch-shared/scripts/moloch.mjs process-queue --dao 0xDAO --first 100
+# Primary
+moloch-agent proposal-lifecycle --dao 0xDAO --proposal 1
+moloch-agent process-queue --dao 0xDAO
+# Fallback
+node scripts/moloch.mjs proposal-lifecycle --dao 0xDAO --proposal 1
+node scripts/moloch.mjs process-queue --dao 0xDAO --first 100
 ```

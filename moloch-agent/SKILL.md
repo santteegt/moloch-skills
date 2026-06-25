@@ -1,200 +1,125 @@
 ---
 name: moloch-agent
-description: Operate an autonomous DAOhaus/Moloch V3 agent with minimal setup using the HausDAO hosted moloch service for Graph reads and IPFS pinning. Use when the operator wants to provide only a DAO, mandate, and local signing wallet instead of managing Graph/Pinata credentials.
+description: Operate an autonomous DAOhaus/Moloch V3 agent on Base with minimal setup. The hosted moloch service handles Graph reads and IPFS pinning so the agent only needs a DAO address, a mandate, and a local signing wallet. Use this skill as the default entry point for all DAOhaus/Moloch V3 operations unless the operator explicitly requests ClawBank integration.
 ---
 
 # Moloch Agent
 
-Use this skill as the low-friction entry point for autonomous DAOhaus/Moloch agents on Base.
+Default entry point for autonomous DAOhaus/Moloch V3 agents on Base. The hosted moloch
+service handles Graph reads and IPFS pinning. Signing always stays local — private keys
+are never sent to the service.
 
-This skill assumes the hosted service handles Graph reads and IPFS pinning:
+---
 
-```bash
-export MOLOCH_SERVICE_URL="${MOLOCH_SERVICE_URL:-https://moloch-service-production.up.railway.app}"
-```
+## Tooling Hierarchy
 
-The service must never receive private keys. Signing stays local in the agent runtime.
-
-Use the npm CLI for hosted-service operations:
+**Primary — moloch-agent CLI:**
 
 ```bash
 npm install -g @raidguild/meta-clawtel
-moloch-agent capabilities
-```
-
-## Minimal Operator Inputs
-
-Resolve these from the harness/environment first. Ask the operator only for values that are missing and required for the immediate task.
-
-Required only when acting on an existing DAO:
-
-- DAO address.
-- Agent mandate or mandate source.
-- Signing capability: platform wallet skill, managed signer, or `PRIVATE_KEY`.
-
-Required only when summoning a new DAO:
-
-- DAO name.
-- Token symbols.
-- Initial members and initial share/loot balances.
-- Governance settings not already supplied by a template.
-- Agent mandate or mandate source.
-- Signing capability.
-
-Do not ask for agent voice, review mode, watch-only mode, no-action rules, or shared memory pointers during the first prompt unless the operator already made those part of the task. Default to autonomous operation. Discover or create shared memory pointers during bootstrap.
-
-Do not ask the operator for:
-
-- The Graph API key.
-- Pinata JWT.
-- DAOhaus subgraph id.
-- Poster contract tags.
-
-Use the hosted service for those dependencies.
-
-## Skill Stack
-
-This skill may be the only skill the agent is explicitly told to use. During bootstrap, inventory the harness/platform skills and tools that are available in the current agent environment, then prefer them where they are stronger than the generic fallback.
-
-Expected stack:
-
-- Moloch skill: this `moloch-agent` skill.
-- Runtime CLI: `@raidguild/meta-clawtel`, exposed as `moloch-agent`.
-- Platform wallet/account skill, if available: use it for managed signer access and account status.
-- Platform Pinata/IPFS skill, if available: use it for larger artifact publishing and retrieval.
-- Platform scheduler/task skill, if available: use it to register recurring DAO checks.
-- Platform secrets skill, if available: use it for `PRIVATE_KEY`, managed wallet config, or managed RPC credentials.
-
-Fallback behavior:
-
-- If no platform Pinata/IPFS skill is visible, use `moloch-agent pin-json`.
-- If no platform wallet skill is visible, use local `PRIVATE_KEY`.
-- If no platform scheduler skill is visible, write the recommended task prompts from `AGENT_TASKS.md` for the operator or harness to register.
-- If no managed RPC is visible, the CLI falls back to public Base RPC for light operation.
-
-Record the detected platform capabilities in the bootstrap output before scheduling autonomous work.
-
-## Runtime Assumptions
-
-Primary CLI:
-
-```text
-moloch-agent
-```
-
-Install:
-
-```bash
-npm install -g @raidguild/meta-clawtel
-```
-
-The npm CLI handles hosted service reads, pinning, proposal lifecycle checks, summon transaction building, proposal transaction building, lifecycle actions, and local signing for core actions. Use the shared runtime script only as an advanced fallback for commands not yet exposed by `moloch-agent`.
-
-Preferred runtime asset path:
-
-```text
-/data/custom/moloch-skills
-```
-
-Shared CLI:
-
-```text
-/data/custom/moloch-skills/moloch-shared/scripts/moloch.mjs
-```
-
-If the CLI is missing, install runtime assets from:
-
-```text
-https://github.com/HausDAO/moloch-skills
-```
-
-For Prism, use the Prism-managed install flow from `PRISM.md`; do not install only into `CODEX_HOME`.
-
-## Dependency Check
-
-First, check the hosted service:
-
-```bash
 moloch-agent health
 moloch-agent capabilities
 ```
 
-Expected capabilities:
+Use `moloch-agent` for all standard operations: reads, proposal creation, proposal actions,
+summon, IPFS pinning, and DAO memory posts.
 
-- `graph.configured: true`
-- `pinning.configured: true`
-- `signing.handledByService: false`
-
-If an advanced fallback command is needed, check the local transaction runtime:
+**Fallback — shared scripts:**
 
 ```bash
-node /data/custom/moloch-skills/moloch-shared/scripts/moloch.mjs capabilities
+node scripts/moloch.mjs capabilities
 ```
 
-If using local signing, require:
+Use `scripts/moloch.mjs` only when a specific command is not yet exposed
+by the CLI, or when the CLI package is unavailable.
 
-```bash
-export PRIVATE_KEY=0x...
-```
+> **Script setup**: if installed via `npx skills`, run `npm install` once in the skill
+> directory (e.g. `.agents/skills/moloch-agent/`) before using `scripts/moloch.mjs`.
+> The `moloch-agent` CLI needs no install step.
 
-`RPC_URL` defaults to the public Base RPC (`https://mainnet.base.org`) so the CLI works without extra setup. Prefer setting a managed Base RPC URL for real scheduled operation because the public endpoint can rate limit.
+> **Inverted defaults**: `moloch-agent` broadcasts by default (`--build-only` for dry-run).
+> `moloch.mjs` dry-runs by default (`--send` to broadcast). Do not mix flags between them.
 
-Transaction commands wait for receipts by default to reduce stale nonce races between back-to-back writes such as sponsor then vote. Use `--wait` to make that explicit, `--confirmations N` to wait longer, or `--no-wait` only for fire-and-forget operation. `MOLOCH_WAIT_DEFAULT=false` remains a fallback for older wrappers.
+For full install instructions, environment variables, execution modes, and 1Password CLI
+integration, read `references/setup.md`.
+
+---
+
+## Minimal Operator Inputs
+
+Resolve these from the harness/environment first. Ask the operator only for values that
+are missing and required for the immediate task.
+
+**Existing DAO:**
+- DAO address.
+- Agent mandate or mandate source.
+- Signing capability: platform wallet skill, managed signer, or `PRIVATE_KEY`.
+
+**New summon:**
+- DAO name and token symbols.
+- Initial members with share/loot balances.
+- Governance settings not already in a template.
+- Agent mandate or mandate source.
+- Signing capability.
+
+Do not ask for: Graph API key, Pinata JWT, DAOhaus subgraph ID, Poster contract tags.
+The hosted service supplies those. Do not ask for watch-only mode, review mode, or
+no-action rules during the first prompt unless the operator explicitly requested them.
+Default to autonomous operation.
+
+---
+
+## Platform Skill Inventory
+
+On bootstrap, inventory harness/platform skills and prefer them over generic fallbacks:
+
+| Capability | Platform skill (preferred) | Fallback |
+|---|---|---|
+| Wallet/account | Platform wallet skill | `PRIVATE_KEY` + `moloch-agent account` |
+| IPFS publishing | Platform Pinata/IPFS skill | `moloch-agent pin-json` |
+| Scheduler/tasks | Platform task skill | Write task prompts from `references/agent-tasks.md` |
+| Secrets | Platform secrets skill | Shell env vars |
+| RPC | Managed RPC credential | Public Base RPC (light reads only) |
+
+Record detected capabilities in the bootstrap output before scheduling autonomous work.
+
+---
 
 ## Source Authority
 
-Use layered sources of truth:
+| Source | Use for |
+|---|---|
+| Direct chain / RPC | Execution truth: proposal lifecycle, voting window, processing preflight. |
+| Hosted moloch service | Graph discovery, indexed history, IPFS pinning. |
+| DAO database records | Shared coordination and memory events. |
+| IPFS CIDs | Larger/versioned artifacts and proposal workspaces. |
+| Local files | Scratch, checkpoints, and task continuity only. |
 
-- Direct chain/RPC reads: execution truth, proposal lifecycle, voting/process preflight.
-- Hosted moloch service: Graph discovery and Pinata uploads.
-- DAO database records: shared communication and memory events.
-- IPFS CIDs: larger/versioned artifacts and proposal workspaces.
-- Local files: scratch, checkpoints, and task continuity only.
+Graph data can lag. Never rely on hosted Graph data alone to decide a transaction is safe
+to send. Re-read chain state before every write action.
 
-Graph data can lag. Never use hosted Graph data alone to decide that a transaction is executable. Re-read chain state before write actions.
+---
 
 ## Bootstrap
 
-Use `BOOTSTRAP.md` as the generic first-run flow.
-
-Bootstrap should:
+First-run flow for a new or existing DAO:
 
 1. Confirm DAO address or summon intent.
 2. Detect platform skills and local CLI/runtime capabilities.
-3. Detect signer/account status from platform wallet skill, `ACCOUNT_ADDRESS`, `PRIVATE_KEY`, or `moloch-agent account`.
-4. Load the operator-provided mandate or mandate source.
-5. Discover existing shared memory pointers from DAO metadata, or create starter pointers when summoning.
-6. Run a task snapshot once a DAO exists.
+3. Detect signer from platform wallet skill, `ACCOUNT_ADDRESS`, `PRIVATE_KEY`,
+   or `moloch-agent account`.
+4. Load the operator-provided mandate or mandate source. Do not invent the mandate.
+5. Discover existing shared memory pointers from DAO metadata, or create starter
+   pointers when summoning.
+6. Run a task snapshot once a DAO address is known.
 7. Configure scheduled tasks when a scheduler is available.
 8. Report only hard blockers.
 
-Do not invent the mandate. If the operator has not provided a mandate, create a local draft with missing fields and continue only with read/setup work until the mandate exists. Do not ask for watch-only or review-only mode unless the operator requests dry-run operation.
+For the full bootstrap flow, read `references/bootstrap.md`.
 
-## Summon
+---
 
-For a new DAO, create a small params file and summon through the npm CLI:
-
-```bash
-moloch-agent summon --params summon.json
-```
-
-The summon params should include initial members, raw initial share/loot base-unit balances, token names, voting/grace periods, quorum, sponsor threshold, and min retention. If DAO metadata pointers such as `communityMemoryURI`, `proposalWorkspaceURI`, or `sharedStateURI` are omitted, the CLI creates and pins a starter DAO workspace and includes its `ipfs://...` URI in summon metadata.
-
-Use whole-number percentages for `quorum` and `minRetention`. Use 18-decimal base units for shares, loot, offering, and sponsor threshold when the value represents Baal token units.
-
-Address rule: never expand shortened address previews such as `0x1234...abcd`. Use only full `0x` 40-hex-character addresses from `moloch-agent account`, environment variables, wallet output, chain/Graph reads, checked JSON files, or explicit full user input. For founder/member/payment/mint params, fetch the exact address again instead of reconstructing it from a preview.
-
-Before summon, run:
-
-```bash
-moloch-agent account
-```
-
-If the signer should be an initial member, copy the full returned `address` exactly into `memberAddresses`.
-
-## Hosted Service Helpers
-
-Read DAO state through the npm CLI:
+## Core Read Commands
 
 ```bash
 moloch-agent dao --dao 0xDAO
@@ -203,88 +128,61 @@ moloch-agent links --dao 0xDAO --proposal 12
 moloch-agent read-dao --dao 0xDAO
 moloch-agent balances --dao 0xDAO
 moloch-agent balances --address 0xADDRESS --token 0xERC20
+moloch-agent treasury-tokens --dao 0xDAO
 moloch-agent proposals --dao 0xDAO
+moloch-agent proposal --dao 0xDAO --proposal 12
 moloch-agent proposal-lifecycle --dao 0xDAO --proposal 12
 moloch-agent process-queue --dao 0xDAO
 moloch-agent members --dao 0xDAO
 moloch-agent records --dao 0xDAO --table communityMemory
+moloch-agent account
 ```
 
-`daohaus-url` returns the DAOhaus Admin proposals URL, for example:
+`daohaus-url` returns the DAOhaus Admin URL:
+`https://admin.daohaus.club/molochv3/0x2105/0xDAO/proposals`
 
-```text
-https://admin.daohaus.club/molochv3/0x2105/0xDAO/proposals
-```
+---
 
-Use `links` when BaseScan address/code or transaction URLs are also useful.
+## Summon
 
-Pin JSON artifacts through the npm CLI:
+Create a params file and summon through the CLI:
 
 ```bash
-moloch-agent pin-json --file community-state.json --name community-state-v1
-moloch-agent workspace-create --kind dao --dao 0xDAO --title "DAO Workspace"
-moloch-agent workspace-create --kind proposal --dao 0xDAO --title "Proposal Workspace"
+moloch-agent summon --params summon.json
 ```
 
-Use returned `ipfs://...` values in:
+Params must include: initial members, raw share/loot base-unit balances, token names,
+voting/grace periods, quorum, sponsor threshold, and min retention. If memory pointers
+(`communityMemoryURI`, `proposalWorkspaceURI`, `sharedStateURI`) are omitted, the CLI
+creates and pins a starter workspace and includes its `ipfs://` URI in summon metadata.
 
-- `contentURI`
-- `workspaceURI`
-- `stateURI`
-- DAO metadata pointers
+- Use whole-number percentages for `quorum` and `minRetention`.
+- Use 18-decimal base units for shares, loot, offering, and sponsor threshold.
+- **Address rule**: never expand shortened previews like `0x1234...abcd`. Use only full
+  `0x` 40-hex-character addresses. Run `moloch-agent account` and copy the returned
+  `address` exactly for founder/signer params.
 
-Update DAO metadata pointers through a governance proposal:
+---
 
-```bash
-moloch-agent dao-meta \
-  --dao 0xDAO \
-  --title "Update DAO memory pointers" \
-  --community-memory-uri ipfs://... \
-  --proposal-workspace-uri ipfs://...
-```
+## Proposal Creation
 
-This writes DAOhaus-compatible metadata through Poster so indexed clients can discover shared memory pointers.
+Proposal path decision:
 
-## Autonomous Task Loop
+| Intent | Command |
+|---|---|
+| Text-only intent or signal | `signal` |
+| Token tribute + join | `join-dao` / `tribute` |
+| Token swap | `swap` / `token-swap` |
+| Direct share grant (no tribute) | `mint-shares` |
+| Direct loot grant (no tribute) | `mint-loot` |
+| Treasury ETH / ERC-20 payment | `payment` |
+| Governance settings change | `gov-settings` |
+| Token pause / transfer settings | `token-settings` |
+| Arbitrary on-chain action | `custom-proposal` |
 
-Run these task types from `AGENT_TASKS.md`:
+Do not use `signal` for membership, tribute, or treasury payment actions.
 
-1. Proposal Action Watcher
-2. Initiative Steward
-3. Proposal Generation
-
-Default behavior:
-
-- Broadcast when mandate and live preflight point to action.
-- Transaction commands broadcast by default.
-- Use `--build-only` only when a task explicitly needs an unsigned transaction artifact.
-- Do not wait for operator approval.
-- Process ready proposals as mechanical settlement.
-- Post concise DAO database memory records after meaningful actions.
-- Keep proposal/action output compact. Do not print full calldata, ABI fragments, or raw Graph JSON unless asked.
-
-## Proposal Creation Rules
-
-When creating proposals:
-
-1. Read current DAO state and memory.
-2. Check the mandate and initiative backlog.
-3. Do not create a new proposal if 3 or more proposals are currently in voting.
-4. Let the CLI create and pin a proposal workspace automatically. Do not pass `--link` or `--content-uri` unless it is already an IPFS workspace URI for this proposal.
-5. Use `ipfs://...` workspace links by default. Set `IPFS_GATEWAY_URL` only when gateway URLs should be used as proposal links.
-6. Keep proposal workspaces small and versioned; IPFS artifacts are immutable.
-7. Use the correct proposal path:
-   - text-only intent: `signal`
-   - token tribute / join / swap: `tribute`, `join-dao`, `swap`, or `token-swap`
-   - direct share grant: `mint-shares`
-   - direct non-voting loot grant: `mint-loot`
-   - treasury ETH/ERC-20 payment: `payment`
-   - governance settings: `gov-settings`
-   - token pause/transfer settings: `token-settings`
-   - mapped action not yet first-class: `custom-proposal`
-8. Broadcast by default if preflight passes.
-
-Do not use `signal` for a real membership, shares, loot, tribute, token swap, or treasury payment action.
+Proposal throttle: do not create a new proposal when 3 or more are currently in voting.
 
 Common proposal commands:
 
@@ -292,11 +190,7 @@ Common proposal commands:
 moloch-agent signal --dao 0xDAO --title "..." --description "..."
 moloch-agent gov-settings --dao 0xDAO --params gov-settings.json
 moloch-agent token-settings --dao 0xDAO --pause-shares false --pause-loot false
-moloch-agent custom-proposal --dao 0xDAO --title "Custom action" --actions actions.json
-moloch-agent wrap-eth --amount 0.01
-moloch-agent approve-token --token 0x4200000000000000000000000000000000000006 --amount 0.01
-moloch-agent treasury-tokens --dao 0xDAO
-moloch-agent ragequit --dao 0xDAO --to 0xRECIPIENT --shares 1 --loot 0 --tokens ETH --confirm-ragequit
+moloch-agent custom-proposal --dao 0xDAO --title "..." --actions actions.json
 moloch-agent join-dao --dao 0xDAO --token 0xERC20 --amount 1000000 --shares 10000
 moloch-agent tribute --dao 0xDAO --token 0xERC20 --amount 1000000 --shares 10000
 moloch-agent swap --dao 0xDAO --token 0xERC20 --amount 1000000 --shares 0 --loot 100
@@ -304,13 +198,41 @@ moloch-agent payment --dao 0xDAO --recipient 0xPAYEE --amount 0.01
 moloch-agent payment --dao 0xDAO --recipient 0xPAYEE --token 0xERC20 --amount 100 --decimals 6
 moloch-agent mint-shares --dao 0xDAO --to 0xMEMBER --amount 1
 moloch-agent mint-loot --dao 0xDAO --to 0xMEMBER --amount 100
+moloch-agent wrap-eth --amount 0.01
+moloch-agent approve-token --token 0x4200000000000000000000000000000000000006 --amount 0.01
 ```
 
-In normal operation, omit `--link` on proposal commands. The CLI will pin a proposal workspace and set proposal details `contentURI` automatically.
+Notes:
+- Omit `--link` / `--content-uri` in normal operation. The CLI pins a proposal workspace
+  and sets `contentURI` automatically. Pass a URI only when it is already an IPFS
+  workspace link for this specific proposal.
+- `--amount 1` for `mint-shares` / `mint-loot` means 1 full DAO token (encodes as
+  `1e18`). Use `--amount-raw` only when an exact base-unit value is intended.
+- ERC-20 `payment` requires `--amount-raw` or `--decimals` because token decimals vary.
+  Native ETH `payment` takes decimal ETH in `--amount`.
 
-For `mint-shares` and `mint-loot`, `--amount 1` means 1 full DAO token and encodes as `1000000000000000000`. Use `--amount-raw` only when the exact base-unit value is intended.
+---
 
-For treasury `payment`, native ETH uses decimal ETH in `--amount`. ERC-20 payments require `--amount-raw` or `--decimals` because token decimals vary.
+## Proposal Actions
+
+```bash
+moloch-agent sponsor --dao 0xDAO --proposal 12
+moloch-agent vote --dao 0xDAO --proposal 12 --approved true --reason "..."
+moloch-agent cancel --dao 0xDAO --proposal 12
+moloch-agent process-ready --dao 0xDAO
+moloch-agent ragequit --dao 0xDAO --to 0xRECIPIENT --shares 1 --loot 0 --tokens ETH --confirm-ragequit
+```
+
+**Processing rule**: processing is not a mandate decision. When `process-queue` identifies
+a ready proposal and chain preflight passes — process it regardless of proposal type,
+value, or membership status. `process-ready` selects the oldest ready proposal and
+applies `baalGas` automatically. Re-read state and post a result record after processing.
+
+**Vote rule**: use `proposal-lifecycle` and `process-queue` instead of raw Graph fields
+to determine whether a proposal is in voting or processable. Read `references/vote-decision-flow.md`
+for the full vote evaluation framework.
+
+---
 
 ## DAO Database Memory
 
@@ -325,55 +247,75 @@ moloch-agent memory-post \
   --body "Reason for vote."
 ```
 
-Use the `community-memory/v1` envelope. Prefer `threadId` for grouping.
-
-For votes, prefer the combined vote command with a reason:
+For votes, prefer the combined form which posts a vote-reason record and submits the vote
+in one step:
 
 ```bash
 moloch-agent vote \
-  --dao 0xDAO \
-  --proposal 12 \
+  --dao 0xDAO --proposal 12 \
   --approved false \
   --reason "I voted no because the proposal needs clearer deliverables."
 ```
 
-This posts a `vote-reason` memory record linked to the proposal workspace, then submits the vote.
-
-## Processing Rule
-
-Processing is not a subjective mandate decision.
-
-When `process-queue` identifies the oldest ready proposal and live chain preflight passes:
-
-- use exact indexed `proposalData`
-- process oldest ready proposal first
-- do not block because of proposal category, value, shares, loot, membership, payments, or settings
-- reread state after processing
-- post a concise result record
-
-Preferred command:
+Update DAO metadata pointers through governance:
 
 ```bash
-moloch-agent process-ready --dao 0xDAO
+moloch-agent dao-meta \
+  --dao 0xDAO \
+  --title "Update DAO memory pointers" \
+  --community-memory-uri ipfs://... \
+  --proposal-workspace-uri ipfs://...
 ```
 
-`process-ready` uses the queue helper, selects the oldest ready proposal, and includes a gas limit derived from proposal `baalGas` when available. If a proposal was submitted with `baalGas` too low, the process transaction can still need a larger outer transaction gas limit.
+Pin standalone artifacts:
+
+```bash
+moloch-agent pin-json --file community-state.json --name community-state-v1
+moloch-agent workspace-create --kind dao --dao 0xDAO --title "DAO Workspace"
+moloch-agent workspace-create --kind proposal --dao 0xDAO --title "Proposal Workspace"
+```
+
+For the full memory layer model (Poster, Graph, IPFS, workspaces), read `references/memory-layer.md`.
+
+---
+
+## Autonomous Task Loop
+
+Run these recurring task types. For cron prompts, triggers, and cron command patterns,
+read `references/agent-tasks.md`.
+
+1. **Proposal Action Watcher** — sponsor, vote, process, cancel, and post action records.
+2. **Initiative Steward** — maintain the mandate initiative backlog, update operating
+   context after proposal outcomes.
+3. **Proposal Generation** — create at most one proposal per cycle when the mandate and
+   throttle allow it.
+
+Default behavior: broadcast when mandate and live preflight point to action. Do not wait
+for operator approval. Keep proposal/action output compact — do not print full calldata,
+ABI fragments, or raw Graph JSON unless asked.
+
+---
 
 ## References
 
-Use these repo docs as supporting references:
+Read these on demand — do not load all at once:
 
-- `BOOTSTRAP.md`
-- `AGENT_TASKS.md`
-- `MEMORY_LAYER.md`
-- `VOTE_DECISION_FLOW.md`
-- `PRISM.md`
+| File | Read when |
+|---|---|
+| `references/setup.md` | First setup, install, env vars, `--build-only` / `--send` semantics, external wallet integration. |
+| `references/bootstrap.md` | First run for a new or existing DAO. |
+| `references/agent-tasks.md` | Setting up scheduled tasks; cron patterns and prompts for the three core task types. |
+| `references/vote-decision-flow.md` | Evaluating a proposal vote; applying mandate conviction to a decision. |
+| `references/memory-layer.md` | Shared DAO memory model; Poster envelopes, IPFS, workspaces, cross-agent communication. |
+| `references/prism.md` | Installing and registering skills on Prism; Prism-specific execution rules. |
 
-For advanced commands and troubleshooting, use:
+References — load when the task requires their specific domain:
 
-- `moloch-shared`
-- `moloch-dao-read`
-- `moloch-proposals`
-- `moloch-proposal-actions`
-- `moloch-summon`
-- `moloch-agent-conviction`
+| Reference | Load when |
+|---|---|
+| `references/summon.md` | Complex or template-based DAO summons; full params shape and Safe integration. |
+| `references/proposals.md` | Detailed proposal encoding, advanced proposal types, workspace rules. |
+| `references/proposal-actions.md` | Advanced sponsor/vote/process/cancel flows and eligibility preflight. |
+| `references/dao-read.md` | Deep contract-level reads; preflight checklist before write actions. |
+| `references/scripts.md` | Full `scripts/moloch.mjs` command cheatsheet; decode tools; proposal data encoding. |
+| `references/conviction.md` | Agent governance mandate: bootstrapping values, voting policy, initiative backlog. |

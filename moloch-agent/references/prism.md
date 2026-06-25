@@ -2,10 +2,10 @@
 
 This repo contains Codex skills plus runtime assets for DAOhaus/Moloch V3/Baal DAO operations.
 
-For scheduled agent task patterns, use `AGENT_TASKS.md`.
+For scheduled agent task patterns, use `agent-tasks.md` (same references folder).
 Prefer `task-snapshot` cron jobs for routine state gathering so agents can consume compact artifacts instead of repeating verbose Graph/RPC reads.
-For vote reasoning, use `VOTE_DECISION_FLOW.md`.
-For shared DAO memory and proposal workspaces, use `SHARED_MEMORY.md`.
+For vote reasoning, use `vote-decision-flow.md` (same references folder).
+For shared DAO memory and proposal workspaces, use `memory-layer.md` (same references folder).
 
 ## Prism Install Pattern
 
@@ -27,58 +27,39 @@ Use the Prism-managed skill flow:
 
 4. Each `SKILL.md` should reference runtime scripts by absolute path, for example:
 
-   `/data/custom/moloch-skills/moloch-shared/scripts/moloch.mjs`
+   `/data/custom/moloch-skills/moloch-agent/scripts/moloch.mjs`
 
 ## Runtime Assets
 
 The shared CLI lives in:
 
 ```bash
-/data/custom/moloch-skills/moloch-shared/scripts/moloch.mjs
+/data/custom/moloch-skills/moloch-agent/scripts/moloch.mjs
 ```
 
 Install dependencies from:
 
 ```bash
-cd /data/custom/moloch-skills/moloch-shared
+cd /data/custom/moloch-skills/moloch-agent
 npm install
 node scripts/moloch.mjs --help
 ```
 
 ## Environment
 
-Read-only operations:
+For the full variable list, install steps, and execution mode flags, read `setup.md`
+(same references folder).
 
-```bash
-RPC_URL=https://mainnet.base.org
-GRAPH_API_KEY=...
-# or
-GRAPH_URL=...
-```
+Prism-specific notes:
 
-Use `https://mainnet.base.org` only as a fallback for small tests. Dedicated RPC providers such as Alchemy or Infura are recommended for scheduled agents.
-
-Base DAOhaus Graph endpoint:
-
-```bash
-GRAPH_URL=https://gateway.thegraph.com/api/YOUR_GRAPH_KEY/subgraphs/id/7yh4eHJ4qpHEiLPAk9BXhL5YgYrTrRE6gWy8x4oHyAqW
-```
-
-Broadcasting transactions:
-
-```bash
-PRIVATE_KEY=0x...
-```
-
-`PRIVATE_KEY` is only required for `--send` operations. Never request or use it for read-only commands.
-
-If 1Password CLI is available, Prism may use:
-
-```bash
---vault-provider 1password --vault-item "<item>" --vault-field private_key
-```
-
-Use a dedicated RPC provider such as Alchemy or Infura for agent runs. Public Base RPC is acceptable for small tests but can rate limit chatty agents.
+- Scripts use the absolute runtime path; set env vars in the Prism skill environment,
+  not the shell.
+- `PRIVATE_KEY` is only required for `--send` operations on the shared scripts.
+  Never request or use it for read-only commands.
+- If 1Password CLI is available, omit `PRIVATE_KEY` from the environment and pass
+  `--vault-provider 1password --vault-item "<item>" --vault-field private_key` with `--send`.
+- Use a dedicated RPC provider (Alchemy, Infura) for scheduled agents; the public
+  Base RPC (`https://mainnet.base.org`) can rate-limit chatty agents.
 
 ## Autonomous Execution Rules
 
@@ -96,18 +77,28 @@ Use a dedicated RPC provider such as Alchemy or Infura for agent runs. Public Ba
 
 ## Recommended Prism Skill Split
 
-Register read-only skills first:
+Install `moloch-agent` as the primary skill. The following capability domains are available
+as references within `moloch-agent/references/`:
 
-- `moloch-shared`
-- `moloch-dao-read`
-- `moloch-proposals`
-- `moloch-agent-conviction`
+Read-first references (safe for read-only agents):
 
-Register action skills with autonomous execution instructions:
+- `dao-read.md` — DAO and proposal state reads
+- `proposals.md` — proposal encoding and submission
+- `conviction.md` — agent governance mandate setup
 
-- `moloch-proposal-actions`
-- `moloch-summon`
-- `meta-clawtel-launch`
+Action references (autonomous execution enabled):
+
+- `proposal-actions.md` — sponsor, vote, process, cancel
+- `summon.md` — DAO summoning
+
+Supporting references (always available):
+
+- `scripts.md` — full shared script command cheatsheet and decode tools
+- `setup.md` — environment, install, execution modes
+- `bootstrap.md` — first-run flow
+- `agent-tasks.md` — scheduled task prompts
+- `memory-layer.md` — DAO memory model
+- `prism.md` — Prism-specific rules
 
 ## Prism Skill Author Prompt
 
@@ -130,20 +121,17 @@ Use:
 - managed skill definitions: POST /api/internal/skills
 - do not install final skills only into /data/codex/skills
 
-Create managed SKILL.md definitions for:
-- moloch-shared
-- moloch-dao-read
-- moloch-proposals
-- moloch-agent-conviction
-- moloch-proposal-actions
-- moloch-summon
-- meta-clawtel-launch
+Install the moloch-agent skill:
+- SKILL.md: moloch-agent/SKILL.md
+- references: moloch-agent/references/
+- scripts: /data/custom/moloch-skills/moloch-agent/scripts/moloch.mjs
+- config: /data/custom/moloch-skills/moloch-agent/config/networks.json
 
-Each SKILL.md must reference the shared CLI by absolute path:
-/data/custom/moloch-skills/moloch-shared/scripts/moloch.mjs
+Each Prism-managed SKILL.md must reference the shared CLI by absolute path:
+/data/custom/moloch-skills/moloch-agent/scripts/moloch.mjs
 
 Install Node dependencies in:
-/data/custom/moloch-skills/moloch-shared
+/data/custom/moloch-skills/moloch-agent
 
 Verify:
 - Skills appear in Prism Skills UI.
@@ -155,4 +143,4 @@ Verify:
 
 ## Future Machine-Readable Pack
 
-If Prism needs stricter automation later, add a small `prism.skill-pack.json`. Start with this `PRISM.md` because agents will read it naturally when they encounter the repo.
+If Prism needs stricter automation later, add a small `prism.skill-pack.json`. Start with this file because agents will read it naturally when they encounter the repo.

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   createPublicClient,
   createWalletClient,
@@ -24,19 +25,26 @@ import { request, gql } from 'graphql-request';
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 const BAAL_ETH_TOKEN = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
-const BASE_CHAIN_ID = 8453;
-const SUMMONER = '0x97Aaa5be8B38795245f1c38A883B44cccdfB3E11';
-const POSTER = '0x000000000000cd17345801aa8147b8D3950260FF';
-const TRIBUTE_MINION = '0x00768B047f73D88b6e9c14bcA97221d6E179d468';
-const BASE_WETH = '0x4200000000000000000000000000000000000006';
-const GNOSIS_MULTISEND = '0x998739BFdAAdde7C933B942a68053933098f9EDa';
-const DAOHAUS_BASE_SUBGRAPH_ID = '7yh4eHJ4qpHEiLPAk9BXhL5YgYrTrRE6gWy8x4oHyAqW';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const _NETWORKS = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'networks.json'), 'utf8'));
+const BASE_CHAIN_ID = Number(process.env.CHAIN_ID || 8453);
+const _NET = _NETWORKS[String(BASE_CHAIN_ID)];
+if (!_NET) throw new Error(`Unknown chain ID: ${BASE_CHAIN_ID}. Add it to moloch-shared/config/networks.json.`);
+
+const SUMMONER = _NET.contracts.V3_FACTORY_ADV_TOKEN;
+const POSTER = _NET.contracts.POSTER;
+const TRIBUTE_MINION = _NET.contracts.TRIBUTE_MINION;
+const BASE_WETH = _NET.contracts.BASE_WETH;
+const GNOSIS_MULTISEND = _NET.contracts.GNOSIS_MULTISEND;
+const DAOHAUS_BASE_SUBGRAPH_ID = _NET.subgraphId;
 const THE_GRAPH_GATEWAY = 'https://gateway.thegraph.com/api';
-const POSTER_TAG_DAO_DB = 'daohaus.proposal.database';
-const POSTER_TAG_SUMMONER = 'daohaus.summoner.daoProfile';
-const POSTER_TAG_DAO_PROFILE_UPDATE = 'daohaus.shares.daoProfile';
-const POSTER_TAG_MEMBER_DB = 'daohaus.member.database';
-const POSTER_TAG_SHARES_DB = 'daohaus.shares.database';
+const POSTER_TAG_DAO_DB = _NET.tags.POSTER_DAO_DATABASE;
+const POSTER_TAG_SUMMONER = _NET.tags.POSTER_DAO_PROFILE_SUMMONER;
+const POSTER_TAG_DAO_PROFILE_UPDATE = _NET.tags.POSTER_DAO_PROFILE_UPDATE;
+const POSTER_TAG_MEMBER_DB = _NET.tags.POSTER_MEMBER_DATABASE;
+const POSTER_TAG_SHARES_DB = _NET.tags.POSTER_SHARES_DATABASE;
 const POSTER_POST_SELECTOR = toFunctionSelector('post(string,string)');
 const ACTION_GAS_LIMIT_ADDITION = 150000n;
 const PROCESS_PROPOSAL_GAS_LIMIT_ADDITION = 400000n;

@@ -1,0 +1,87 @@
+name: Validate
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate SKILL.md frontmatter
+        run: |
+          FAILED=0
+          while IFS= read -r -d '' skill_file; do
+            SKILL_FAILED=0
+            if ! head -1 "$skill_file" | grep -q '^---'; then
+              echo "ERROR: $skill_file — missing YAML frontmatter"
+              SKILL_FAILED=1
+            else
+              FRONTMATTER=$(awk '/^---/{ if(++n==2) exit; next } n==1{ print }' "$skill_file")
+              if ! echo "$FRONTMATTER" | grep -q '^name:'; then
+                echo "ERROR: $skill_file — missing 'name' field in frontmatter"
+                SKILL_FAILED=1
+              fi
+              if ! echo "$FRONTMATTER" | grep -q '^description:'; then
+                echo "ERROR: $skill_file — missing 'description' field in frontmatter"
+                SKILL_FAILED=1
+              fi
+            fi
+            if [ "$SKILL_FAILED" -eq 0 ]; then
+              echo "OK: $skill_file"
+            else
+              FAILED=1
+            fi
+          done < <(find . -name "SKILL.md" -not -path "./.git/*" -print0)
+          exit $FAILED
+
+      - name: Validate JSON files
+        run: |
+          FAILED=0
+          while IFS= read -r -d '' json_file; do
+            if ! python3 -m json.tool "$json_file" > /dev/null 2>&1; then
+              echo "ERROR: $json_file — invalid JSON"
+              FAILED=1
+            else
+              echo "OK: $json_file"
+            fi
+          done < <(find . -name "*.json" \
+            -not -path "./.git/*" \
+            -not -path "*/node_modules/*" \
+            -print0)
+          exit $FAILED
+
+      - name: Check for dead directory references
+        run: |
+          # Patterns that reference directories deleted in v1.0.0
+          DEAD_PATTERNS=(
+            "moloch-shared/"
+            "moloch-proposals/"
+            "moloch-proposal-actions/"
+            "moloch-dao-read/"
+            "moloch-agent-conviction/"
+            "templates/community-memory"
+            "\.\./moloch-shared"
+            "\.\./moloch-summon"
+          )
+          FAILED=0
+          for pattern in "${DEAD_PATTERNS[@]}"; do
+            MATCHES=$(grep -rn "$pattern" \
+              --include="*.md" --include="*.json" \
+              --exclude="CHANGELOG.md" \
+              --exclude-dir=".git" \
+              --exclude-dir="node_modules" \
+              . || true)
+            if [ -n "$MATCHES" ]; then
+              echo "ERROR: Found references to deleted path '$pattern':"
+              echo "$MATCHES"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -eq 0 ]; then
+            echo "OK: No dead directory references found."
+          fi
+          exit $FAILED

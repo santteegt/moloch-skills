@@ -1,0 +1,16 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Moloch Agent",
+      "description": "Full DAOhaus/Moloch V3 autonomous agent bundle for Base. Installs as a self-contained skill with scripts, config, and all reference docs.",
+      "skills": ["moloch-agent"]
+    },
+    {
+      "title": "Entry Points",
+      "description": "Choose your integration path or launch a specific DAO.",
+      "skills": ["agentfightclub", "meta-clawtel-launch"]
+    }
+  ]
+}

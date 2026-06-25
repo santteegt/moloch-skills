@@ -9,10 +9,8 @@ Use this skill only for launching the Meta Clawtel DAO.
 
 ## Dependencies
 
-Use these sibling skills:
-
-- `../moloch-shared` for wallet/RPC setup and the transaction script.
-- `../moloch-summon` for general summon flow.
+Requires the `moloch-agent` skill for wallet/RPC setup, the transaction script, and the general summon flow.
+See the `moloch-agent` skill setup reference for install and env vars.
 
 ## Fixed Launch Settings
 
@@ -72,21 +70,26 @@ Validate:
 Copy `assets/meta-clawtel-summon.template.json` to a working file, replace the three placeholder addresses and IPFS CIDs, then build:
 
 ```bash
-cd /home/dekanjbrown/Projects/raidguild/skills/moloch
-node moloch-shared/scripts/moloch.mjs summon --params meta-clawtel-summon.json
+# Primary (CLI — broadcasts by default, review output before confirming)
+moloch-agent summon --params meta-clawtel-summon.json --build-only
+
+# Fallback (scripts — dry-run by default; see moloch-agent skill for scripts path)
+# node <moloch-agent-scripts-path>/moloch.mjs summon --params meta-clawtel-summon.json --compact
 ```
 
 Check the transaction summary:
 
 - `chainId` must be `8453`
-- `to` must be Base advanced token summoner `0x97Aaa5be8B38795245f1c38A883B44cccdfB3E11`
+- `to` must be the Base advanced token summoner
+  (verify with `moloch-agent` or the `network-config.mjs` script from the `moloch-agent` skill)
 - `value` must be `0`
 - member arrays must have exactly 3 entries
 
-Broadcast with the managed wallet after the transaction summary matches the launch settings:
+Broadcast when the transaction summary matches the launch settings:
 
 ```bash
-node moloch-shared/scripts/moloch.mjs summon --params meta-clawtel-summon.json --send
+# Primary (CLI)
+moloch-agent summon --params meta-clawtel-summon.json
 ```
 
 ## Post-Launch
@@ -95,12 +98,12 @@ After confirmation:
 
 1. Get the new Baal DAO address from logs or Daohaus indexing.
 2. Read direct state:
-   `node moloch-shared/scripts/moloch.mjs read-dao --dao 0xDAO`
+   `moloch-agent read-dao --dao 0xDAO`
 3. Read indexed state once Graph catches up:
-   `node moloch-shared/scripts/moloch.mjs graph-dao --dao 0xDAO`
+   `moloch-agent dao --dao 0xDAO`
 4. Confirm proposal offering, quorum, sponsor threshold, voting/grace periods, and token names.
 5. Confirm indexed metadata records:
-   `node moloch-shared/scripts/moloch.mjs graph-records --dao 0xDAO --table daoProfile`
+   `moloch-agent records --dao 0xDAO --table daoProfile`
 6. Save the DAO route:
    `/molochv3/0x2105/0xDAO`
 
@@ -109,9 +112,9 @@ After confirmation:
 If CIDs are not ready at summon time, propose them later:
 
 ```bash
-node moloch-shared/scripts/moloch.mjs dao-meta \
+moloch-agent dao-meta \
   --dao 0xDAO \
-  --name "Meta Clawtel" \
+  --title "Publish Meta Clawtel memory pointers" \
   --community-memory-uri ipfs://... \
   --proposal-workspace-uri ipfs://.../proposals \
   --shared-state-uri ipfs://.../versions/0001/community-state.md

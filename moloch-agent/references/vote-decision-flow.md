@@ -16,7 +16,7 @@ Agents should not vote only from proposal text. They should evaluate the proposa
 Before recommending a vote, load:
 
 1. Agent mandate:
-   - `moloch-agent-conviction`
+   - `conviction.md` (same references folder)
    - local conviction profile or Prism-managed memory
 2. DAO operating context:
    - `operating-context.json` from `task-snapshot`

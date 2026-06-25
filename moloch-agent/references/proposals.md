@@ -1,27 +1,30 @@
----
-name: moloch-proposals
-description: Build and submit Moloch V3/Baal proposals on Base. Use for DAOhaus signal proposals, governance setting changes, token/admin setting changes, tribute-style proposal planning, proposalData encoding, submitProposal tx objects, and proposal offering handling.
----
-
 # Moloch Proposals
 
-Use this skill to build or submit Baal proposals on Base.
+Use this reference when building or submitting Baal proposals on Base.
 
 Default to high-level commands and concise summaries. Do not expose ABI fragments, raw calldata, or full JSON shapes unless the user asks for a technical review.
 
 ## Workflow
 
-1. Use `../moloch-shared` for RPC, wallet, and transaction script setup.
-2. Run proposal intent preflight before choosing a command.
+1. For env vars, install, and execution modes, see `setup.md` (same references folder).
+2. Run proposal intent preflight before choosing a command (see table below).
 3. Read DAO state first:
-   `node ../moloch-shared/scripts/moloch.mjs read-dao --dao 0xDAO`
-4. Optionally read indexed DAO/proposal context with `graph-dao` or `graph-proposals`.
+   ```bash
+   moloch-agent read-dao --dao 0xDAO                           # primary
+   node scripts/moloch.mjs read-dao --dao 0xDAO               # fallback
+   ```
+4. Optionally read indexed DAO/proposal context:
+   ```bash
+   moloch-agent dao --dao 0xDAO                                # primary
+   node scripts/moloch.mjs graph-proposals --dao 0xDAO --first 20  # fallback
+   ```
 5. Find DAO memory pointers from `daoProfile.communityMemoryURI`, `daoProfile.sharedStateURI`, and `daoProfile.proposalWorkspaceURI` when available.
-6. Let the npm CLI create and pin proposal workspaces automatically. Do not manually create proposal folders unless the task is draft-only or the operator provides an existing workspace URI.
+6. Let the CLI create and pin proposal workspaces automatically. Do not manually create proposal folders unless the task is draft-only or the operator provides an existing workspace URI.
 7. Include `proposalOffering` as tx value for `submitProposal` unless the DAO uses zero offering.
-8. Build the proposal tx and review the compact summary.
-9. Decode the full calldata with `decode-submit-proposal` only when reviewing complex proposals or when asked.
-10. For autonomous proposal tasks, broadcast with `--send` when live preflight passes and the managed signer has the required gas and DAO permissions. Omit `--send` only for explicit dry-run, review, draft mode, or technical blockers.
+8. Build and review the compact summary, then broadcast:
+   - With the `moloch-agent` CLI: commands broadcast by default (`--build-only` for dry-run).
+   - With the shared scripts: dry-run by default; add `--send` to broadcast.
+9. Decode full calldata with `decode-submit-proposal` only when reviewing complex proposals or when asked.
 
 ## Proposal Intent Preflight
 
@@ -44,7 +47,7 @@ If the operator asks for shares, loot, membership, admission, or a join request,
 Build details independently when needed:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs details \
+node scripts/moloch.mjs details \
   --title "Signal title" \
   --description "Signal body" \
   --link "https://..." \
@@ -60,7 +63,7 @@ Proposal commands default `submitProposal` `baalGas` to `0`. This is intentional
 Proposal offering is separate from tribute or payment amounts. Offering is native chain token sent as transaction `value` to satisfy the DAO's configured proposal offering. Tribute/swap amounts are contributed ERC-20 token amounts handled by Tribute Minion. Treasury payment amounts are encoded inside proposal actions.
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs signal \
+node scripts/moloch.mjs signal \
   --dao 0xDAO \
   --title "Signal title" \
   --description "Signal body" \
@@ -88,7 +91,7 @@ Use `mint-loot` for non-voting rewards, trial memberships, reputation grants, or
 Share and loot quantities use human 18-decimal units by default. Use `--amount 10000` for 10,000 shares, not `10000000000000000000000`. Use `--amount-raw`, `--shares-raw`, or `--loot-raw` only when you intentionally want exact base units.
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs mint-shares \
+node scripts/moloch.mjs mint-shares \
   --dao 0xDAO \
   --to 0xMEMBER \
   --amount 1 \
@@ -100,7 +103,7 @@ node ../moloch-shared/scripts/moloch.mjs mint-shares \
 For multiple recipients, pass comma-separated values with matching lengths:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs mint-shares \
+node scripts/moloch.mjs mint-shares \
   --dao 0xDAO \
   --to 0xA,0xB \
   --amount 1,2.5 \
@@ -208,7 +211,7 @@ Use this for DAOhaus-readable metadata, agent-readable rules, and shared communi
 Profile links:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs dao-meta \
+node scripts/moloch.mjs dao-meta \
   --dao 0xDAO \
   --name "DAO Name" \
   --community-memory-uri ipfs://... \
@@ -220,13 +223,13 @@ node ../moloch-shared/scripts/moloch.mjs dao-meta \
 Custom records remain available for DAOs that already use Poster tables:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs dao-record \
+node scripts/moloch.mjs dao-record \
   --dao 0xDAO \
   --table charter \
   --content-file charter-record.json \
   --send
 
-node ../moloch-shared/scripts/moloch.mjs dao-record \
+node scripts/moloch.mjs dao-record \
   --dao 0xDAO \
   --table joinRules \
   --content-file join-rules-record.json \
@@ -256,7 +259,7 @@ IPFS is immutable. Do not describe this as editing a folder or updating a table 
 Use Poster for proposal communication around the workspace:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs memory-post \
+node scripts/moloch.mjs memory-post \
   --dao 0xDAO \
   --table communityMemory \
   --thread-id proposal-draft-slug \
@@ -302,7 +305,7 @@ Create `params.json`:
 Build:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs gov-settings --dao 0xDAO --params params.json --send
+node scripts/moloch.mjs gov-settings --dao 0xDAO --params params.json --send
 moloch-agent gov-settings --dao 0xDAO --params params.json
 ```
 
@@ -311,7 +314,7 @@ moloch-agent gov-settings --dao 0xDAO --params params.json
 Daohaus names this token settings, but the Baal call is `setAdminConfig(bool pauseShares, bool pauseLoot)`.
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs token-settings \
+node scripts/moloch.mjs token-settings \
   --dao 0xDAO \
   --pause-shares false \
   --pause-loot false \
@@ -363,6 +366,6 @@ For governance settings, `quorum` and `minRetention` are raw whole-number percen
 Review:
 
 ```bash
-node ../moloch-shared/scripts/moloch.mjs decode-submit-proposal --data 0xFULL_CALLDATA
-node ../moloch-shared/scripts/moloch.mjs decode-proposal-data --data 0xINNER_PROPOSAL_DATA
+node scripts/moloch.mjs decode-submit-proposal --data 0xFULL_CALLDATA
+node scripts/moloch.mjs decode-proposal-data --data 0xINNER_PROPOSAL_DATA
 ```
