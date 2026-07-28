@@ -145,6 +145,7 @@ For the full bootstrap flow, read `references/bootstrap.md`.
 ## Core Read Commands
 
 ```bash
+moloch-agent networks
 moloch-agent dao --dao 0xDAO
 moloch-agent daohaus-url --dao 0xDAO
 moloch-agent links --dao 0xDAO --proposal 12
@@ -165,6 +166,7 @@ If the MCP server is registered (preferred — see `references/setup.md`), call 
 directly instead of shelling out. Same operations, e.g.:
 
 ```text
+moloch_list_networks  {}
 moloch_read_dao       { "dao": "0xDAO" }
 moloch_read_proposal  { "dao": "0xDAO", "proposal": 12 }
 moloch_service_list_proposals { "dao": "0xDAO" }
@@ -173,6 +175,13 @@ moloch_service_list_proposals { "dao": "0xDAO" }
 That's illustrative, not literal syntax — call `tools/list` for each tool's exact input
 schema; most `moloch-agent <cmd>` reads above have a `moloch_*`/`moloch_service_*`
 counterpart following the same naming convention (`--dao` → `dao`, etc.).
+
+`networks` / `moloch_list_networks` takes no `--dao` — it lists every chain this build
+of `moloch-agent` supports (chain ID, name, default RPC/service URLs, contract
+addresses, Poster tags), not just the one it's currently configured for. Only Base
+(`8453`) is registered today, but check this instead of assuming — it's the mechanism
+this skill would use to pick up additional chains without a doc rewrite once
+`santteegt/moloch-agent`'s registry grows past Base.
 
 `daohaus-url` returns the DAOhaus Admin URL:
 `https://admin.daohaus.club/molochv3/0x2105/0xDAO/proposals`
