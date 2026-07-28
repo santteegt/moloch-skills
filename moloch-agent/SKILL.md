@@ -13,6 +13,26 @@ are never sent to the service.
 
 ## Tooling Hierarchy
 
+**Preferred — moloch-agent MCP server (if configured):**
+
+```bash
+npx -p @raidguild/meta-clawtel moloch-agent-mcp
+```
+
+Use it when the agent runtime can spawn a local MCP server over stdio. It wraps the same
+build/read logic as the CLI as individually callable, typed tools (`moloch_*` for
+transaction builders and chain reads, `moloch_service_*` for hosted-service passthroughs
+— e.g. `moloch_summon`, `moloch_vote`, `moloch_read_dao`), so the agent composes
+operations by calling tools directly instead of shelling out to the CLI and parsing
+stdout. Every write tool is build-only — it returns an unsigned
+`{ to, value, data, chainId }` and never signs, same boundary as the CLI's
+`--build-only`, just with no signing path in this transport at all.
+
+Wallet-model fit: the CLI path is for a **managed wallet** (`PRIVATE_KEY` or a platform
+wallet skill signing directly as an EOA); the MCP server path is for a **smart account**
+— its unsigned-tx output is the shape a smart-contract-wallet flow (Safe, ERC-4337
+userOp, session keys) consumes and executes itself.
+
 **Primary — moloch-agent CLI:**
 
 ```bash
@@ -40,8 +60,8 @@ by the CLI, or when the CLI package is unavailable.
 > **Inverted defaults**: `moloch-agent` broadcasts by default (`--build-only` for dry-run).
 > `moloch.mjs` dry-runs by default (`--send` to broadcast). Do not mix flags between them.
 
-For full install instructions, environment variables, execution modes, and 1Password CLI
-integration, read `references/setup.md`.
+For full install instructions, environment variables, execution modes, MCP server setup,
+and 1Password CLI integration, read `references/setup.md`.
 
 ---
 
@@ -75,11 +95,12 @@ On bootstrap, inventory harness/platform skills and prefer them over generic fal
 
 | Capability | Platform skill (preferred) | Fallback |
 |---|---|---|
+| Transaction building & reads | `moloch-agent` MCP server (if configured; smart-account signing) | `moloch-agent` CLI, `--build-only` for unsigned tx (managed-wallet signing) |
 | Wallet/account | Platform wallet skill | `PRIVATE_KEY` + `moloch-agent account` |
 | IPFS publishing | Platform Pinata/IPFS skill | `moloch-agent pin-json` |
 | Scheduler/tasks | Platform task skill | Write task prompts from `references/agent-tasks.md` |
 | Secrets | Platform secrets skill | Shell env vars |
-| RPC | Managed RPC credential | Public Base RPC (light reads only) |
+| RPC | Managed RPC credential | Public RPC for the resolved default chain (light reads only) |
 
 Record detected capabilities in the bootstrap output before scheduling autonomous work.
 
@@ -226,7 +247,15 @@ moloch-agent ragequit --dao 0xDAO --to 0xRECIPIENT --shares 1 --loot 0 --tokens 
 **Processing rule**: processing is not a mandate decision. When `process-queue` identifies
 a ready proposal and chain preflight passes — process it regardless of proposal type,
 value, or membership status. `process-ready` selects the oldest ready proposal and
-applies `baalGas` automatically. Re-read state and post a result record after processing.
+applies `baalGas` automatically. A manual `process --proposal <id>` also preflights
+automatically before broadcasting (processableNow, not already processed, `proposalData`
+match) — use `--skip-preflight` only for a deliberate expert override; `--build-only`
+always skips it. Re-read state and post a result record after processing.
+
+Before submitting a proposal, use `estimate-baal-gas` (CLI) / `moloch_estimate_baal_gas`
+(MCP) to size the inner `baalGas` stipend instead of guessing — or `--estimate-baal-gas`
+directly on the submitting command. `moloch_preflight_process` (MCP) exposes the same
+processing preflight as a standalone check.
 
 **Vote rule**: use `proposal-lifecycle` and `process-queue` instead of raw Graph fields
 to determine whether a proposal is in voting or processable. Read `references/vote-decision-flow.md`
