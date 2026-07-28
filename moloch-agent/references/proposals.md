@@ -60,6 +60,22 @@ Daohaus expects details JSON with `title`, `description`, optional `contentURI`,
 
 Proposal commands default `submitProposal` `baalGas` to `0`. This is intentional: Baal ignores a zero `baalGas`, while a low nonzero value can cause processing to fail with an out-of-gas style action failure. Use `--baal-gas` only when you know the required inner action gas. Use `--estimate-baal-gas` as an explicit opt-in for DAOhaus-style estimation with a default `1.2x` buffer.
 
+`--estimate-baal-gas` is available directly on `signal`, `dao-meta`, `dao-record`,
+`gov-settings`, `token-settings`, `custom-proposal`, `payment`, `mint-shares`, and
+`mint-loot` (not on the Tribute Minion family — `tribute`/`join-dao`/`swap` — which
+doesn't route through this estimator). It simulates the built multisend through the
+DAO's Safe module to size the stipend instead of guessing. Pair it with
+`--baal-gas-buffer <multiplier>` (default `1.2`) to adjust the safety margin, and
+`--require-baal-gas-estimate` to hard-fail the command instead of silently falling back
+to `0` when the simulation itself fails.
+
+Run the same estimation standalone against an already-built `proposalData` — useful when
+reviewing a proposal before deciding whether its stored `baalGas` was sized correctly:
+
+```bash
+moloch-agent estimate-baal-gas --dao 0xDAO --proposal-data 0xPROPOSAL_DATA
+```
+
 Proposal offering is separate from tribute or payment amounts. Offering is native chain token sent as transaction `value` to satisfy the DAO's configured proposal offering. Tribute/swap amounts are contributed ERC-20 token amounts handled by Tribute Minion. Treasury payment amounts are encoded inside proposal actions.
 
 ```bash
@@ -75,7 +91,7 @@ node scripts/moloch.mjs signal \
 Signal proposals encode a Poster `post` action inside `submitProposal`.
 They do not issue shares, issue loot, transfer funds, or admit members.
 
-If DAOhaus Admin shows a Poster decoding error such as `Encoded function signature "0x..." not found on ABI`, treat it as a malformed action until proven otherwise. A valid Poster signal action uses `post(string,string)` with selector `0x0ae1b13d`. Run `decode-submit-proposal` or `decode-proposal-data`; the decoder annotates Poster actions and flags unknown selectors.
+If DAOhaus Admin shows a Poster decoding error such as `Encoded function signature "0x..." not found on ABI`, treat it as a malformed action until proven otherwise. A valid Poster signal action uses `post(string,string)` with selector `0x0ae1b13d`. Run `moloch-agent decode-proposal` (primary) or `decode-submit-proposal` / `decode-proposal-data` (fallback); the decoder annotates Poster actions and flags unknown selectors.
 
 ## Membership Proposal Types
 
@@ -223,18 +239,20 @@ node scripts/moloch.mjs dao-meta \
 Custom records remain available for DAOs that already use Poster tables:
 
 ```bash
-node scripts/moloch.mjs dao-record \
+moloch-agent dao-record \
   --dao 0xDAO \
   --table charter \
-  --content-file charter-record.json \
-  --send
+  --content-file charter-record.json
+# Fallback: node scripts/moloch.mjs dao-record --dao 0xDAO --table charter --content-file charter-record.json --send
 
-node scripts/moloch.mjs dao-record \
+moloch-agent dao-record \
   --dao 0xDAO \
   --table joinRules \
-  --content-file join-rules-record.json \
-  --send
+  --content-file join-rules-record.json
 ```
+
+`dao-meta` is a thin wrapper over `dao-record` for the `daoProfile` table specifically —
+use `dao-record` directly for any other Poster table.
 
 These build a proposal that posts a Poster record if passed. Use memory layer URIs for shared state, workspace roots, and larger versioned artifacts.
 
@@ -366,6 +384,8 @@ For governance settings, `quorum` and `minRetention` are raw whole-number percen
 Review:
 
 ```bash
-node scripts/moloch.mjs decode-submit-proposal --data 0xFULL_CALLDATA
-node scripts/moloch.mjs decode-proposal-data --data 0xINNER_PROPOSAL_DATA
+moloch-agent decode-proposal --dao 0xDAO --proposal 1        # primary — fetches proposalData from the indexer
+moloch-agent decode-proposal --data 0xINNER_PROPOSAL_DATA     # primary — decode calldata directly
+node scripts/moloch.mjs decode-submit-proposal --data 0xFULL_CALLDATA        # fallback
+node scripts/moloch.mjs decode-proposal-data --data 0xINNER_PROPOSAL_DATA    # fallback
 ```

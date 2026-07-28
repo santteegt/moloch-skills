@@ -59,7 +59,9 @@ Use an explicit process gas limit. Wallet/RPC estimation can undercount inner pr
 For processing, get `proposalData` from `graph-proposal`. Decode it before sending if there is any ambiguity:
 
 ```bash
-node scripts/moloch.mjs decode-proposal-data --data 0xPROPOSAL_DATA
+moloch-agent decode-proposal --dao 0xDAO --proposal 1     # primary — fetches proposalData from the indexer
+moloch-agent decode-proposal --data 0xPROPOSAL_DATA        # primary — decode calldata directly
+node scripts/moloch.mjs decode-proposal-data --data 0xPROPOSAL_DATA  # fallback
 ```
 
 Queue processing oldest ready proposal first:
@@ -87,7 +89,7 @@ moloch-agent cancel --dao 0xDAO --proposal 1
 - For processability, use Graph only to find candidate proposal IDs, timing hints, metadata, and original `proposalData`; then verify direct chain `state(id) == Ready`, previous-proposal state, and `getProposalStatus` processed/cancelled/actionFailed flags.
 - Use `process-queue --first 100` or larger for watcher tasks so older ready proposals are not missed.
 - Always process in ascending proposal order from `process-queue`; do not skip ahead unless the earlier proposal is terminal on chain.
-- `process --send` runs lifecycle preflight by default when Graph/RPC are configured. Use `--skip-preflight` only for a deliberate expert override.
+- `process --send` runs lifecycle preflight by default when Graph/RPC are configured — this now applies to the primary `moloch-agent process` too (processableNow, not already processed, and that supplied `proposalData` matches what's indexed), not just the fallback script. Use `--skip-preflight` only for a deliberate expert override; `--build-only` always skips it since nothing is being sent. `process-ready` does not call this same preflight function — it already has its own, pre-existing safety mechanism (selecting only the oldest proposal that `process-queue` marks ready), so there's nothing to opt out of there.
 
 ## Sponsor Then Vote Race
 

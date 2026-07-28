@@ -12,7 +12,9 @@ The subgraph ID and gateway URL are in `config/networks.json`.
 moloch-agent read-dao --dao 0xDAO
 moloch-agent dao --dao 0xDAO
 moloch-agent proposal --dao 0xDAO --proposal 1
+moloch-agent read-proposal --dao 0xDAO --proposal 1
 moloch-agent proposals --dao 0xDAO --first 20
+moloch-agent dao-history --dao 0xDAO --first 100
 moloch-agent members --dao 0xDAO
 moloch-agent records --dao 0xDAO --table daoProfile
 moloch-agent records --dao 0xDAO --table signal
@@ -21,11 +23,19 @@ moloch-agent proposal-lifecycle --dao 0xDAO --proposal 1
 moloch-agent process-queue --dao 0xDAO
 
 # Fallback (shared scripts — use for commands not yet in the CLI)
-node scripts/moloch.mjs read-proposal --dao 0xDAO --proposal 1
-node scripts/moloch.mjs graph-dao-history --dao 0xDAO --first 100
 node scripts/moloch.mjs graph-member --dao 0xDAO --member 0xMEMBER
 node scripts/moloch.mjs process-queue --dao 0xDAO --first 100
 ```
+
+`proposal` reads indexed metadata (title, description, vote history); `read-proposal` reads
+the contract directly (raw `proposals(id)` tuple, `getProposalStatus`, `state`) — use
+`read-proposal` for anything permissions- or timing-sensitive. `dao-history` composes the
+indexed DAO profile with its proposal history in one call and supersedes the fallback
+script's `graph-dao-history` for the common case.
+
+`graph-member --dao --member` has no CLI/MCP equivalent yet — single-member lookup is a
+confirmed, still-open gap upstream (the hosted service's member list has no address
+filter), not an oversight. It stays fallback-only until that lands.
 
 ## What To Check
 

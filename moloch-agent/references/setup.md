@@ -7,6 +7,15 @@ variables, and transaction execution modes for the moloch-skills bundle.
 
 ## Tooling hierarchy
 
+**Preferred:** the `moloch-agent` MCP server (`moloch-agent-mcp`), if the agent runtime
+can spawn a local MCP server over stdio. It wraps the exact same build/read logic as the
+CLI as individually callable, typed tools — `moloch_*` for transaction builders and
+chain reads, `moloch_service_*` for hosted-service passthroughs (e.g. `moloch_summon`,
+`moloch_vote`, `moloch_read_dao`) — so the agent composes operations one tool call at a
+time instead of shelling out to the CLI and parsing stdout. It is always build-only: no
+flag needed, unlike the CLI's opt-in `--build-only` (see
+[Transaction execution modes](#transaction-execution-modes)).
+
 **Primary:** the `moloch-agent` npm CLI backed by the hosted moloch service.
 Use it for all standard DAO operations — it handles Graph reads, IPFS pinning, and
 proposal workspace creation automatically.
@@ -19,9 +28,50 @@ Use it only when:
 Every command example in the skill docs marks which toolchain it uses. Do not mix flags
 between them — they have inverted execution defaults (see [Transaction execution modes](#transaction-execution-modes)).
 
+**Wallet-model split:** the MCP server and the CLI target different wallet
+architectures, not just different transports. Use the CLI with a **managed wallet** —
+`PRIVATE_KEY` or a platform wallet skill signing directly as an EOA. Use the MCP server
+with a **smart account** — its unsigned `{ to, value, data, chainId }` output is the
+shape a smart-contract-wallet flow (Safe, ERC-4337 userOp, session keys) consumes and
+executes itself. Pick the transport based on which wallet architecture the agent
+actually has, not just tool-calling convenience.
+
 ---
 
 ## Install
+
+### moloch-agent MCP server (preferred)
+
+```bash
+npx -p @raidguild/meta-clawtel moloch-agent-mcp
+```
+
+Or, if `@raidguild/meta-clawtel` is already installed globally: `moloch-agent-mcp`.
+
+Speaks MCP over stdio as a local child process. Register it in the agent runtime's MCP
+client config as a stdio server, `command`/`args`/`env` — not a remote URL:
+
+```json
+{
+  "mcpServers": {
+    "moloch-agent": {
+      "command": "npx",
+      "args": ["-p", "@raidguild/meta-clawtel", "moloch-agent-mcp"],
+      "env": {
+        "RPC_URL": "https://your-base-rpc-url"
+      }
+    }
+  }
+}
+```
+
+This registration is normally done once by the operator or harness before the agent
+session starts — most MCP clients fix their server list at startup, so an agent can't
+typically add this mid-session. `env` is optional; every variable it can take (and its
+default) is in [Environment variables](#environment-variables) below — omit anything
+you don't need to override. The agent's own job at runtime is just to detect whether
+this server is already registered (see [Capability check](#capability-check)) and use
+it if so — not to install or register it itself.
 
 ### moloch-agent CLI (primary)
 
@@ -84,10 +134,18 @@ per-command overrides for the same variables.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `CHAIN_ID` | No | Defaults to `8453` (Base). Change only when operating on a different supported chain. |
+| `CHAIN_ID` | No | Defaults to the CLI's built-in default chain (currently Base, `8453`). The CLI and MCP server validate `CHAIN_ID` against an internal chain registry at startup — even under `--build-only` — and fail immediately with an error naming every chain currently supported if it isn't one of them. Treat that error as the authoritative, current list rather than a hardcoded chain here. |
 | `IPFS_GATEWAY_URL` | No | When set, `moloch-agent` proposal commands use gateway URLs in `contentURI` instead of `ipfs://` URIs. Leave unset unless the target platform requires HTTP gateway links. |
 | `MOLOCH_SEND_DEFAULT` | No | `moloch-agent` only. Set to `false` to make all transaction commands build-only by default. Useful for agent environments where external wallet integration is the norm. |
 | `MOLOCH_WAIT_DEFAULT` | No | Fallback wait-for-receipt default for the shared scripts. Prefer the per-command flags `--wait`, `--no-wait`, and `--confirmations N`. |
+
+### For the MCP server
+
+Reuses `MOLOCH_SERVICE_URL`, `RPC_URL`, `CHAIN_ID`, and `IPFS_GATEWAY_URL` from the
+tables above — all optional, same defaults, same `CHAIN_ID` validation and fail-fast
+behavior as the CLI row above. Never set `PRIVATE_KEY` for this process — it has no
+signing path and does not read that variable even if present; keep it out of this
+process's environment the same way it stays out of the hosted service's.
 
 ### 1Password CLI (optional)
 
@@ -128,6 +186,13 @@ current environment, useful when an external signer is always in the loop.
 Use without `--send` when building unsigned transactions for external signing, reviewing
 before broadcast, or in explicit draft/review/dry-run mode.
 
+### moloch-agent MCP server
+
+Always build-only — no flag or env var controls this. Every write tool returns an
+unsigned `{ to, value, data, chainId }`; there is no broadcast or signing tool in this
+server at all. Unlike the CLI (where `--build-only` is opt-in and `MOLOCH_SEND_DEFAULT`
+can flip the default), this transport has exactly one mode.
+
 ### Receipt waiting
 
 Both toolchains wait for transaction receipts by default to prevent stale nonce races
@@ -143,26 +208,31 @@ in back-to-back writes (e.g. sponsor then vote).
 
 ## Capability check
 
-Always run a capability check before the first autonomous task:
+Always run a capability check before the first autonomous task, in tooling-hierarchy
+preference order — stop at the first one available:
 
-```bash
-# Primary (moloch-agent CLI)
-moloch-agent health
-moloch-agent capabilities
-
-# Fallback (shared scripts)
-node /data/custom/moloch-skills/moloch-agent/scripts/moloch.mjs capabilities
-```
-
-Expected from `moloch-agent capabilities`:
-- `graph.configured: true` — hosted service has Graph access.
-- `pinning.configured: true` — hosted service has Pinata/IPFS access.
-- `signing.handledByService: false` — signing always stays local.
-
-Expected from `moloch.mjs capabilities`:
-- `configured.rpc: true` — if `RPC_URL` is set.
-- `configured.graph: true` — if `GRAPH_API_KEY` or `GRAPH_URL` is set.
-- `configured.privateKey: true` — if `PRIVATE_KEY` is set.
+1. **Preferred — MCP server.** If the current runtime has `moloch-agent` registered as
+   an MCP server, call `tools/list` on it. A non-error response listing `moloch_*` /
+   `moloch_service_*` tools *is* the capability check — there is no separate health
+   call, and this is also the authoritative, always-current tool list, so it is not
+   duplicated here. Use this transport for the rest of the session.
+2. **Primary — CLI.** Otherwise:
+   ```bash
+   moloch-agent health
+   moloch-agent capabilities
+   ```
+   Expected from `moloch-agent capabilities`:
+   - `graph.configured: true` — hosted service has Graph access.
+   - `pinning.configured: true` — hosted service has Pinata/IPFS access.
+   - `signing.handledByService: false` — signing always stays local.
+3. **Fallback — shared scripts.** Only if the CLI is unavailable:
+   ```bash
+   node /data/custom/moloch-skills/moloch-agent/scripts/moloch.mjs capabilities
+   ```
+   Expected from `moloch.mjs capabilities`:
+   - `configured.rpc: true` — if `RPC_URL` is set.
+   - `configured.graph: true` — if `GRAPH_API_KEY` or `GRAPH_URL` is set.
+   - `configured.privateKey: true` — if `PRIVATE_KEY` is set.
 
 If `tribute`, `join-dao`, or `mint-shares` is missing from `moloch.mjs --help` or
 `capabilities`, the local bundle is stale. Re-install from
