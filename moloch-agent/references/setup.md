@@ -48,9 +48,30 @@ npx -p @raidguild/meta-clawtel moloch-agent-mcp
 
 Or, if `@raidguild/meta-clawtel` is already installed globally: `moloch-agent-mcp`.
 
-Speaks MCP over stdio as a local child process — add it to the agent runtime's MCP
-client config as a stdio server (not a remote URL; contrast with ClawBank's
-streamable-http remote server in the `agentfightclub` skill).
+Speaks MCP over stdio as a local child process. Register it in the agent runtime's MCP
+client config as a stdio server, `command`/`args`/`env` — not a remote URL:
+
+```json
+{
+  "mcpServers": {
+    "moloch-agent": {
+      "command": "npx",
+      "args": ["-p", "@raidguild/meta-clawtel", "moloch-agent-mcp"],
+      "env": {
+        "RPC_URL": "https://your-base-rpc-url"
+      }
+    }
+  }
+}
+```
+
+This registration is normally done once by the operator or harness before the agent
+session starts — most MCP clients fix their server list at startup, so an agent can't
+typically add this mid-session. `env` is optional; every variable it can take (and its
+default) is in [Environment variables](#environment-variables) below — omit anything
+you don't need to override. The agent's own job at runtime is just to detect whether
+this server is already registered (see [Capability check](#capability-check)) and use
+it if so — not to install or register it itself.
 
 ### moloch-agent CLI (primary)
 
@@ -187,34 +208,35 @@ in back-to-back writes (e.g. sponsor then vote).
 
 ## Capability check
 
-Always run a capability check before the first autonomous task:
+Always run a capability check before the first autonomous task, in tooling-hierarchy
+preference order — stop at the first one available:
 
-```bash
-# Primary (moloch-agent CLI)
-moloch-agent health
-moloch-agent capabilities
-
-# Fallback (shared scripts)
-node /data/custom/moloch-skills/moloch-agent/scripts/moloch.mjs capabilities
-```
-
-Expected from `moloch-agent capabilities`:
-- `graph.configured: true` — hosted service has Graph access.
-- `pinning.configured: true` — hosted service has Pinata/IPFS access.
-- `signing.handledByService: false` — signing always stays local.
-
-Expected from `moloch.mjs capabilities`:
-- `configured.rpc: true` — if `RPC_URL` is set.
-- `configured.graph: true` — if `GRAPH_API_KEY` or `GRAPH_URL` is set.
-- `configured.privateKey: true` — if `PRIVATE_KEY` is set.
+1. **Preferred — MCP server.** If the current runtime has `moloch-agent` registered as
+   an MCP server, call `tools/list` on it. A non-error response listing `moloch_*` /
+   `moloch_service_*` tools *is* the capability check — there is no separate health
+   call, and this is also the authoritative, always-current tool list, so it is not
+   duplicated here. Use this transport for the rest of the session.
+2. **Primary — CLI.** Otherwise:
+   ```bash
+   moloch-agent health
+   moloch-agent capabilities
+   ```
+   Expected from `moloch-agent capabilities`:
+   - `graph.configured: true` — hosted service has Graph access.
+   - `pinning.configured: true` — hosted service has Pinata/IPFS access.
+   - `signing.handledByService: false` — signing always stays local.
+3. **Fallback — shared scripts.** Only if the CLI is unavailable:
+   ```bash
+   node /data/custom/moloch-skills/moloch-agent/scripts/moloch.mjs capabilities
+   ```
+   Expected from `moloch.mjs capabilities`:
+   - `configured.rpc: true` — if `RPC_URL` is set.
+   - `configured.graph: true` — if `GRAPH_API_KEY` or `GRAPH_URL` is set.
+   - `configured.privateKey: true` — if `PRIVATE_KEY` is set.
 
 If `tribute`, `join-dao`, or `mint-shares` is missing from `moloch.mjs --help` or
 `capabilities`, the local bundle is stale. Re-install from
 `https://github.com/HausDAO/moloch-skills`.
-
-For the MCP server, send a `tools/list` request instead — that is both the capability
-check and the authoritative, always-current tool list, so it is not duplicated (and
-does not go stale) here.
 
 ---
 
