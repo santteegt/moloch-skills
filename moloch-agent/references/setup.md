@@ -54,7 +54,7 @@ client config as a stdio server, `command`/`args`/`env` — not a remote URL:
 ```json
 {
   "mcpServers": {
-    "moloch-agent": {
+    "moloch-agent-mcp": {
       "command": "npx",
       "args": ["-p", "@raidguild/meta-clawtel", "moloch-agent-mcp"],
       "env": {
@@ -65,13 +65,19 @@ client config as a stdio server, `command`/`args`/`env` — not a remote URL:
 }
 ```
 
+The key (`moloch-agent-mcp` above) is an arbitrary, operator-chosen label — the MCP
+spec doesn't fix it, and an operator can register this server under any name. **Do not
+rely on that key for detection.** Detect by the tools it exposes instead (`moloch_*` /
+`moloch_service_*`, via `tools/list` — see [Capability check](#capability-check)), which
+are fixed regardless of the registration key.
+
 This registration is normally done once by the operator or harness before the agent
 session starts — most MCP clients fix their server list at startup, so an agent can't
 typically add this mid-session. `env` is optional; every variable it can take (and its
 default) is in [Environment variables](#environment-variables) below — omit anything
 you don't need to override. The agent's own job at runtime is just to detect whether
-this server is already registered (see [Capability check](#capability-check)) and use
-it if so — not to install or register it itself.
+this server's tools are already available (see [Capability check](#capability-check))
+and use them if so — not to install or register the server itself.
 
 ### moloch-agent CLI (primary)
 
@@ -134,7 +140,7 @@ per-command overrides for the same variables.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `CHAIN_ID` | No | Defaults to the CLI's built-in default chain (currently Base, `8453`). The CLI and MCP server validate `CHAIN_ID` against an internal chain registry at startup — even under `--build-only` — and fail immediately with an error naming every chain currently supported if it isn't one of them. Treat that error as the authoritative, current list rather than a hardcoded chain here. |
+| `CHAIN_ID` | No | Defaults to the CLI's built-in default chain (currently Base, `8453`). Run `moloch-agent networks` (CLI) or call `moloch_list_networks` (MCP) to see every chain currently supported — chain ID, name, default RPC/service URLs, contract addresses, Poster tags — rather than assuming Base is the only one. The CLI and MCP server also validate `CHAIN_ID` against this same registry at startup, even under `--build-only`, and fail immediately with an error naming every supported chain if it isn't one of them. |
 | `IPFS_GATEWAY_URL` | No | When set, `moloch-agent` proposal commands use gateway URLs in `contentURI` instead of `ipfs://` URIs. Leave unset unless the target platform requires HTTP gateway links. |
 | `MOLOCH_SEND_DEFAULT` | No | `moloch-agent` only. Set to `false` to make all transaction commands build-only by default. Useful for agent environments where external wallet integration is the norm. |
 | `MOLOCH_WAIT_DEFAULT` | No | Fallback wait-for-receipt default for the shared scripts. Prefer the per-command flags `--wait`, `--no-wait`, and `--confirmations N`. |
@@ -211,11 +217,14 @@ in back-to-back writes (e.g. sponsor then vote).
 Always run a capability check before the first autonomous task, in tooling-hierarchy
 preference order — stop at the first one available:
 
-1. **Preferred — MCP server.** If the current runtime has `moloch-agent` registered as
-   an MCP server, call `tools/list` on it. A non-error response listing `moloch_*` /
-   `moloch_service_*` tools *is* the capability check — there is no separate health
-   call, and this is also the authoritative, always-current tool list, so it is not
-   duplicated here. Use this transport for the rest of the session.
+1. **Preferred — MCP server.** Check the runtime's already-available tools for
+   `moloch_*` / `moloch_service_*` names (or call `tools/list` if the runtime doesn't
+   surface that list directly). Detect by tool names, not by any particular MCP server
+   registration label — the operator may have registered this server under any key
+   (`moloch-agent-mcp` is just this doc's example), and the key itself carries no
+   meaning to the client. Finding the tools *is* the capability check — there is no
+   separate health call, and this is also the authoritative, always-current tool list,
+   so it is not duplicated here. Use this transport for the rest of the session.
 2. **Primary — CLI.** Otherwise:
    ```bash
    moloch-agent health
@@ -242,7 +251,23 @@ If `tribute`, `join-dao`, or `mint-shares` is missing from `moloch.mjs --help` o
 
 ## Network config and contract addresses
 
-Contract addresses, the DAOhaus subgraph ID, and Poster tags live in one place:
+### moloch-agent CLI / MCP server (preferred/primary)
+
+```bash
+moloch-agent networks
+```
+
+Or via MCP: `moloch_list_networks` (no arguments). Lists every chain the currently
+installed `moloch-agent` supports — chain ID, name, default RPC/service URLs, contract
+addresses, and Poster tags — sourced from its own internal registry (`src/networks.ts`
+upstream), independent of which chain `CHAIN_ID` currently has it configured for. This
+is the up-to-date source; only Base (`8453`) is registered as of this writing, but that
+can change without a doc update here — check the live list instead of hardcoding it.
+
+### moloch-agent scripts (fallback)
+
+Contract addresses, the DAOhaus subgraph ID, and Poster tags for the **fallback
+script's own**, separately maintained config live in one place:
 
 ```
 moloch-agent/config/networks.json
@@ -261,4 +286,5 @@ The script defaults to chain `8453` (Base). Pass `--chain <chainId>` for other n
 once added to the config.
 
 Do not hardcode contract addresses in skill files or agent prompts. Always look them up
-from the config when you need them.
+from the config (fallback) or `networks`/`moloch_list_networks` (primary) when you need
+them.
