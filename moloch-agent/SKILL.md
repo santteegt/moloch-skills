@@ -126,9 +126,11 @@ to send. Re-read chain state before every write action.
 First-run flow for a new or existing DAO:
 
 1. Confirm DAO address or summon intent.
-2. Detect the `moloch-agent` MCP server first — call `tools/list` if the runtime has
-   one registered — and use it for transaction building & reads this session if
-   present. Otherwise detect platform skills and local CLI/runtime capabilities.
+2. Detect the moloch-agent MCP server first, by tool presence — look for `moloch_*` /
+   `moloch_service_*` in the runtime's available tools (or call `tools/list`), not by
+   any particular registration label, since the operator may have registered it under
+   any key. Use it for transaction building & reads this session if present. Otherwise
+   detect platform skills and local CLI/runtime capabilities.
 3. Detect signer from platform wallet skill, `ACCOUNT_ADDRESS`, `PRIVATE_KEY`,
    or `moloch-agent account`.
 4. Load the operator-provided mandate or mandate source. Do not invent the mandate.
